@@ -1,0 +1,357 @@
+---
+title: "Project2"
+author: "Armand Bendayan"
+date: "November 26, 2018"
+output:
+  word_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+library(readxl)
+library(dplyr)
+library(stats)
+library(Hmisc)
+library(psych)
+library(stats)
+library(MASS)
+library(MuMIn)
+library(car)
+library(calibrate)
+library(Ecdat)
+library(trafo)
+library(caTools)
+```
+
+## Loading Data
+```{r Data}
+Data <- read_excel("D://OneDrive//Data Analisis//Classes//Semester 3//Applied Linear Regression//Lit Review//Project//Data//AllDataTT.xlsx")
+```
+
+
+## Merging Data
+```{r merge}
+head(Data)
+summary(Data)
+```
+
+## Setting Data to fit models
+```{r transforming}
+Data$`GDP per Capita (PPP)` <- as.numeric(Data$`GDP per Capita (PPP)`)
+Data$EconfreeCategory <- as.factor(Data$EconfreeCategory)
+Data$RelFree <- as.factor(Data$RelFree)
+Data2 <- Data[,-1]
+str(Data2)
+```
+
+#Looking for missing data and checking the variables are in the right format
+```{r na}
+
+Data2[is.na(Data2$`GDP per Capita (PPP)`),]
+
+Data2[is.na(Data2$IQ),]
+
+is.factor(Data2$EconfreeCategory)
+is.factor(Data2$RelFree)
+
+```
+
+## EDA Plots and Correlations
+```{r plots, echo=FALSE}
+plot(Data2, main="Scatterplot all variables")
+pairs.panels(Data2, col="red", main= "Histograms and Correlations")
+
+```
+```{r}
+par(mfrow=c(1,2))
+histogram(Data2$`GDP per Capita (PPP)`, main = " Histogram GDP", type="count")
+densityplot(Data2$`GDP per Capita (PPP)`, main = "Density GDP")
+```
+
+```{r}
+par(mfrow=c(1,2))
+histogram(Data2$IQ, main="Histogram IQ", type="count")
+densityplot(Data2$IQ, main="Density IQ")
+```
+
+```{r}
+histogram(Data2$EconfreeCategory, main= "Economic Freedom Index")
+histogram(Data2$RelFree, main = "Religion Freedom")
+```
+
+
+
+## Model 1 with all variables
+```{r Model 1}
+Model1 <- lm(Data2$`GDP per Capita (PPP)`~ Data2$IQ + Data2$EconfreeCategory + Data2$RelFree)
+summary(Model1)
+```
+
+## Model 2 without Religion Variable
+```{r Model 2}
+Model2 <- lm(Data2$`GDP per Capita (PPP)`~ Data2$IQ + Data2$EconfreeCategory)
+summary(Model2)
+```
+
+## By Looking at this 2 models we can see that there is relationship between IQ, Economic Freedom and Gross Domestic Product per Capita, The First model have also Religion Freedom Index as a variable but when looking at the summary of the linear regression model we can see that there the p-values are not significant enough to consider the variable into the regression.
+
+## On the second model the variables have better significant values by looking the p-value and the adjusted R.squared has also better value.
+
+
+## In this part we are going to perform the Backward and Forward models to compare the models decided by those 2 methods
+```{r Forward and backward setting models}
+fullmodel <-lm(Data2$`GDP per Capita (PPP)`~.,data=Data2)
+nullmodel <-lm(Data2$`GDP per Capita (PPP)`~1, data=Data2)
+```
+
+
+
+## Forward step elimination
+```{r Forward Step Elimination}
+step(nullmodel, scope=list(lower=nullmodel, upper=fullmodel), direction="forward")
+```
+&nbsp;
+&nbsp;
+<p>**The Forward step elimination begins with GDP~1 and then it chooses the best variable with lowest AIC value**</p>
+<p>**The Forward elimination method selected GDP~IQ+Economic Freedom as the best model**</p>
+
+
+## Backward step elimination
+
+```{r Backward Step Elimination}
+step(fullmodel, data=Data2, direction="backward")
+```
+&nbsp;
+&nbsp;
+<p>**The Backward step elimination begins with GDP~IQ+Economic Freedom + Religion Freedom and then it looks for the variable that if removed will give the model lower AIC value**</p>
+<p>**The Backward elimination method selected GDP~IQ+Economic Freedom as the best model**</p>
+<p>**The models chosen by Forward and Backward elimination are the same and also the same as the Model2**</p>
+
+
+```{r}
+pVal1 <- anova(Model1)$'Pr(>F)'[1]
+pVal2 <- anova(Model2)$'Pr(>F)'[1]
+AIC1 <- AIC(Model1)
+AIC2 <- AIC(Model2)
+AICc1 <- AICc(Model1)
+AICc2 <- AICc(Model2)
+BIC1 <- BIC(Model1)
+BIC2 <- BIC(Model2)
+r1 <- summary(Model1)$adj.r.squared
+r2 <- summary(Model2)$adj.r.squared
+
+```
+
+
+
+## Model Comparison
+```{r Model Comparison}
+
+ModelComparison <- matrix(c(r1,r2,
+                            AIC1,AIC2,
+                            AICc1,AICc2,
+                            BIC1,BIC2,
+                            pVal1, pVal2) , ncol=2, byrow = TRUE)
+colnames(ModelComparison) <- c("Model 1","Model 2")
+rownames(ModelComparison) <- c("Adjusted R^2","AIC","AICc", "BIC", "P-Value")
+ModelComparison <-as.table(ModelComparison)
+
+```
+**In this part we merged together the values of $adj.R^2$, $AIC$, $AICc$ and $BIC$ in a sigle matrix and then create a table for better comparison.**
+
+
+## Table with the result of all models
+```{r Models Table}
+ModelComparison
+```
+
+```{r}
+anova(Model1, Model2)
+```
+
+&nbsp;
+&nbsp;
+<p>**By looking at the values, we can see that both models have very similar values and Model 2 has a little improvement over Model 1 but at the cost of a variable**</p>
+<p>**We have to select a Model based on High adj.rsquared and low AIC, BIC, AICc and pvalue**</p>
+<p>**We have to investigate a little more, check for multicolinearity and also for violations of the assumptions**</p>
+
+
+##VIF of the models
+```{r vif of the models}
+
+vif(Model1)
+vif(Model2)
+
+
+eigen(cor(Data2$`GDP per Capita (PPP)`, Data2$IQ))$values
+
+```
+&nbsp;
+&nbsp;
+<p>**The Data has no multicollinearity by looking at the VIF, which is good, the values for both models are around 1.5 meaning no multicollinearity**</p>
+<p>**Eigen Value also show a good distance proving no multicollinearity and also correlation between the number value variables**</p>
+
+```{r}
+plot(Model1)
+plot(Model2)
+```
+
+## Checking Cooks Distance
+```{r Cook Distance}
+plot(Model2, pch=18, col="red",which=c(4))
+sort(round(cooks.distance(Model2),5))
+```
+
+
+&nbsp;
+&nbsp;
+<p>**By looking at the Residual plots we can see violations of the assumptions**</p>
+<p>**Eigen Value also show a good distance proving no multicollinearity and also correlation between the number value variables**</p>
+
+<p>**Residuals vs Fitted: Variance seem  non constant but it has megaphone shape**</p>
+<p>**Residuals vs Fitted: The red line does not mantain a straight line around "0", but it is close.**</p>
+<p>**Normal Q-Q: The data does not seem that normal, on -2 and 1, the residual values move away from the line, meaning no normallity**</p>
+<p>**Scale-Location: The residuals also has increasing pattern.**</p>
+<p>**Residuals vs Leverage: We can notice several points that are influential for the regression line, getting out the accepted range**</p>
+
+
+##Lets have a look of whats going on with some outliers
+```{r}
+ggplot(Data, aes(x=Data$IQ, y=Data$`GDP per Capita (PPP)`, fill=Data$EconfreeCategory)) +
+geom_label(label=Data$`Country Name`, color="black", size=2) + ggtitle("GDP vs IQ colors by EconFreedom")
+```
+&nbsp;
+&nbsp;
+<p>**If we pay closer attention ti the IQ=80 and GDP over 50000 we can see the group of countries with big oil reserves and exports, which might indicates that the country natural resources have an impact in the GDP even if the IQ of the country is not as high**</p>
+<p>**Maybe doing a KNN or Clustering could help to break down the reason why some countries with low IQ have high GDP and the other way around**</p>
+
+
+## taking care of the outliers
+```{r}
+Data3 <- Data2[c(-105,-123,-148),]
+head(Data3)
+
+```
+
+##New Model with transformation
+```{r}
+diagnostics(Data3)
+Model3 <- lm((log(Data3$`GDP per Capita (PPP)`))~ (Data3$IQ) + Data3$EconfreeCategory)
+summary(Model3)
+
+```
+
+```{r}
+vif(Model3)
+```
+
+
+```{r}
+pVal1 <- anova(Model1)$'Pr(>F)'[1]
+pVal2 <- anova(Model2)$'Pr(>F)'[1]
+pVal3 <- anova(Model3)$'Pr(>F)'[1]
+AIC1 <- AIC(Model1)
+AIC2 <- AIC(Model2)
+AIC3 <- AIC(Model3)
+AICc1 <- AICc(Model1)
+AICc2 <- AICc(Model2)
+AICc3 <- AICc(Model3)
+BIC1 <- BIC(Model1)
+BIC2 <- BIC(Model2)
+BIC3 <- BIC(Model3)
+r1 <- summary(Model1)$adj.r.squared
+r2 <- summary(Model2)$adj.r.squared
+r3 <- summary(Model3)$adj.r.squared
+
+
+ModelComparison <- matrix(c(r1,r2,r3,
+                            AIC1,AIC2,AIC3,
+                            AICc1,AICc2,AICc3,
+                            BIC1,BIC2,BIC3,
+                            pVal1, pVal2,pVal3) , ncol=3, byrow = TRUE)
+colnames(ModelComparison) <- c("Model 1","Model 2","Model 3")
+rownames(ModelComparison) <- c("Adjusted R^2","AIC","AICc", "BIC", "P-Value")
+ModelComparison <-as.table(ModelComparison)
+ModelComparison
+```
+
+#confidence interval
+```{r}
+(confint(Model3))
+
+```
+
+##Creating a new Dataset for spliting the data into Training and Test dataset for predictions
+```{r}
+
+Data5 <- Data3[,-4]
+
+set.seed(123)
+split <- sample.split(Data5$`GDP per Capita (PPP)`, SplitRatio = 0.80)
+training_set <- subset(Data5, split == TRUE)
+test_set <- subset(Data5,split == FALSE)
+
+
+
+Regressor <- lm(formula = log(`GDP per Capita (PPP)`)~., data = training_set)
+summary(Regressor)
+
+#Predicting the test result
+y_pred <- predict(Regressor, newdata = test_set)
+DataPred <-as.data.frame(y_pred)
+colnames(DataPred)[1] <- "Predictions"
+
+DataPred[,1] <- exp(DataPred[,1]) 
+DataPred[,2] <- test_set$`GDP per Capita (PPP)`
+colnames(DataPred)[2] <- "Test Data"
+
+DataPred[c(9,11,13,15,19,21),]
+```
+
+# Predicting GDP using the Model 3 Formula
+```{r}
+#Model as formula
+B0 <- summary(Model3)$coefficients[1,1] #intercept
+B1 <- summary(Model3)$coefficients[2,1] #IQ
+B2 <- summary(Model3)$coefficients[3,1] #Moderatly Free
+B3 <- summary(Model3)$coefficients[4,1] #Mostly Free
+B4 <- summary(Model3)$coefficients[5,1] #Mostly Unfree
+B5 <- summary(Model3)$coefficients[6,1] #Repressed
+    
+#Using 7different IQs and Economic Index
+IQ1 <- 100
+Ec1 <- "Mostly Free"
+IQ2 <- 77
+Ec2 <- "Mostly Unfree"
+IQ3 <- 82
+Ec3 <- "Moderatly Free"
+IQ4 <- 58
+Ec4 <- "Repressed"
+IQ5 <- 115
+Ec5 <- "Free"
+IQ6 <- 150
+Ec6 <- "Repressed"
+IQ7 <- 50
+Ec7 <- "Free"
+
+
+GDP1 <- round(exp(B0 + B1*IQ1 + B3))
+GDP2 <- round(exp(B0 + B1*IQ2 + B4))
+GDP3 <- round(exp(B0 + B1*IQ3 + B2))
+GDP4 <- round(exp(B0 + B1*IQ4 + B5))
+GDP5 <- round(exp(B0 + B1*IQ5))
+GDP6 <- round(exp(B0 + B1*IQ6 + B3))
+GDP7 <- round(exp(B0 + B1*IQ7 + B4))
+
+
+PredictGDP <- matrix(c(GDP1,GDP2,GDP3,GDP4,GDP5,GDP6,GDP7,
+                       IQ1,IQ2,IQ3,IQ4,IQ5,IQ6,IQ7,
+                       Ec1,Ec2,Ec3,Ec4,Ec5,Ec6,Ec7) , ncol=3, byrow = FALSE)
+colnames(PredictGDP) <- c("Predicted GDP","IQ", "Economic Freedom Index")
+rownames(PredictGDP) <- c("Prediction 1","Prediction 2","Prediction 3","Prediction 4","Prediction 5","Prediction 6","Prediction 7")
+
+
+PredictGDP1 <- as.data.frame(PredictGDP)
+PredictGDP1
+```
+
